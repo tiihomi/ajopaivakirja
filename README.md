@@ -2,12 +2,44 @@
 
 Ajopäiväkirja on puhelimen selaimessa toimiva sovellus. Sen voi lisätä kotinäytölle, jolloin se toimii kuin tavallinen sovellus.
 
-- **Aloita ajo:** valitse auto ja paina *Aloita ajo*. GPS hakee lähtöpaikan osoitteen.
+- **Aloita ajo:** valitse auto ja paina *Aloita ajo*. GPS hakee lähtöpaikan osoitteen. Sovellus odottaa tarkkaa sijaintia enintään 15 s eikä hyväksy puhelimen vanhaa, välimuistissa olevaa sijaintia.
+- **Automaattiset ehdotukset:** kun sovellus on auki, se ehdottaa ajon aloitusta ja lopetusta liikkeen perusteella (ks. alla).
 - **Välipisteet:** jos ajat useamman kohteen kautta, paina ajon aikana *Lisää välipiste*. Välipisteet tulevat reittiin ja kilometrilaskentaan.
 - **Lopeta ajo:** GPS hakee määränpään, ja sovellus laskee ajoreitin pituuden tieverkkoa pitkin.
 - **Tarkista ja tallenna:** voit korjata kaikki kentät ennen tallennusta: osoitteet, kilometrit, reitin, tarkoituksen ja mittarilukemat.
 - **Lisää ajo käsin:** tätä käytetään, kun GPS ei ollut käytössä tai ajo unohtui kirjata.
 - **Vie Exceliin:** ajot ja kuukausiyhteenveto (autoittain ja kuljettajittain) CSV-tiedostona, joka aukeaa suoraan Excelissä.
+
+## Automaattiset ehdotukset
+
+Kun sovellus on auki ja näyttö päällä (esim. puhelin telineessä), sovellus seuraa nopeutta ja ehdottaa toimintoa äänimerkin ja värinän kanssa:
+
+| Tilanne | Ehdotus |
+| --- | --- |
+| Ajoa ei ole käynnissä, ja puhelin liikkuu yli 20 km/h noin 20 sekuntia | *Aloitetaanko ajo?* Lähtöajaksi ja -paikaksi tulee hetki, jolloin auto lähti liikkeelle. |
+| Ajo on käynnissä, ja auto on seissyt paikallaan 3 minuuttia | *Lopetetaanko ajo?* Saapumisajaksi ja määränpääksi tulee pysähdyshetki ja -paikka. Ehdotus poistuu itsestään, jos auto lähtee taas liikkeelle (esim. ruuhka). |
+| Avaat sovelluksen, ja ajo on jäänyt käyntiin (pysähdyksestä yli 20 min tai ajo kestänyt yli 4 h) | *Unohtuiko ajo käyntiin?* Voit lopettaa ajon viimeiseen pysähdykseen tai nykyhetkeen. |
+
+- *Ei nyt* -vastauksen jälkeen aloitusta ei ehdoteta 15 minuuttiin. Jos vastaat unohtuneeseen ajoon *Jatka ajoa*, sitä ei kysytä 2 tuntiin.
+- Asetuksista voi kytkeä tunnistuksen ja äänen pois. Samasta paikasta saa myös pidettyä näytön päällä ajon aikana, mikä auttaa tunnistusta mutta kuluttaa akkua. Puhelin kannattaa silloin pitää laturissa.
+- Selainsovellus ei saa sijaintia eikä voi soittaa ääntä, kun se on taustalla tai näyttö on kiinni. Tämä on puhelinten tietoturvasääntö, eikä sitä voi kiertää. Taustalla toimiva tunnistus vaatisi erillisen natiivisovelluksen.
+- iPhonen äänetön tila (sivukytkin tai toimintopainike) mykistää äänimerkin. iPhone ei myöskään salli selainsovellukselle värinää.
+
+### Käynnistys auton Bluetoothista
+
+Puhelimen omalla automaatiolla sovelluksen saa avautumaan, kun puhelin yhdistyy autoon. Linkit löytyvät sovelluksen *Asetuksista*. Ne ovat muotoa:
+
+- aloitus: `https://<osoite>/?toiminto=aloita` (sovellus kysyy *Aloitetaanko ajo?*)
+- lopetus: `https://<osoite>/?toiminto=lopeta` (sovellus kysyy *Lopetetaanko ajo?*)
+
+**Android:**
+- **MacroDroid (ilmainen versio riittää):** tee makro, jonka laukaisin on *Bluetooth-tapahtuma → Yhdistetty → auton laite* ja toiminto *Avaa verkkosivu* aloituslinkillä. Tee toinen makro tapahtumalle *Yhteys katkaistu* lopetuslinkillä. Kun sovellus on asennettu Chromesta, linkki avautuu asennettuun sovellukseen.
+- **Samsung (Tilat ja rutiinit):** rutiini *Bluetooth-laite yhdistetty → Avaa sovellus → Ajopäiväkirja* avaa sovelluksen. Liikkeentunnistus ehdottaa aloitusta, kun auto lähtee liikkeelle.
+
+**iPhone (Pikakomennot → Automaatio):**
+- Valitse laukaisimeksi *Bluetooth* (iOS 17 tai uudempi) tai *CarPlay* ja tapahtumaksi *On yhdistetty*.
+- Kotivalikkoon lisätyllä sovelluksella on iPhonessa eri tiedot kuin Safarilla. Jos automaatio avaa linkin, se avautuu Safarissa eikä löydä ajojasi. Valitse siksi toiminnoksi *Näytä ilmoitus* (esim. "Muista aloittaa ajo") ja avaa sovellus itse kotivalikosta.
+- Tarkista toimivuus omassa puhelimessasi, koska iOS-versioiden toiminta vaihtelee.
 
 ## Lisenssit ja kustannukset: 0 €
 
@@ -90,4 +122,4 @@ Jokaisesta ajosta kirjataan:
 
 ## Päivittäminen
 
-Kun muutat tiedostoja, kasvata `sw.js`:n `VERSION`-arvoa (esim. `ajopk-v2`). Puhelimet hakevat uuden version, kun sovellus seuraavan kerran avataan verkkoyhteyden kanssa.
+Kun muutat tiedostoja, kasvata `sw.js`:n `VERSION`-arvoa (nyt `ajopk-v4`, seuraava `ajopk-v5`). Puhelimet hakevat uuden version, kun sovellus seuraavan kerran avataan verkkoyhteyden kanssa.

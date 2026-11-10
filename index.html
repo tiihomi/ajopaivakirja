@@ -204,6 +204,14 @@ dialog {
   border-radius: 28px; background: var(--sc-high); color: var(--on-surface); box-shadow: var(--elev-3);
 }
 dialog::backdrop { background: rgba(0,0,0,.32); }
+#askDlg { width: min(420px, calc(100vw - 32px)); }
+#askDlg .dlg-body { border: 0; padding-top: 0; }
+.ask-text { margin: 0 0 8px; color: var(--on-surface-variant); }
+.switch { display: flex; align-items: flex-start; gap: 12px; min-height: 48px; padding: 8px 0; cursor: pointer; }
+.switch input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--primary); flex: none; }
+.copy-row { display: flex; gap: 8px; margin-bottom: 8px; }
+.copy-row input { flex: 1; min-width: 0; font-size: 14px; }
+.card h3 { margin: 20px 0 4px; font-size: 16px; font-weight: 500; }
 dialog form { display: flex; flex-direction: column; max-height: calc(100dvh - 16px); }
 .dlg-head { padding: 24px 24px 12px; }
 .dlg-head h2 { margin: 0; font-size: 24px; font-weight: 400; line-height: 32px; }
@@ -274,6 +282,19 @@ dialog form { display: flex; flex-direction: column; max-height: calc(100dvh - 1
       </form>
     </div>
     <div class="card">
+      <h2>Automaattinen tunnistus</h2>
+      <p class="sub">Ehdotukset ajon aloitukseen ja lopetukseen</p>
+      <label class="switch"><input type="checkbox" id="setAuto"><span>Ehdota ajon aloitusta ja lopetusta liikkeen perusteella</span></label>
+      <label class="switch"><input type="checkbox" id="setSound"><span>Äänimerkki ja värinä ehdotuksissa</span></label>
+      <label class="switch"><input type="checkbox" id="setAwake"><span>Pidä näyttö päällä ajon aikana</span></label>
+      <p class="muted">Tunnistus toimii vain, kun sovellus on auki ja näyttö päällä, esim. puhelin telineessä. Aloitusta ehdotetaan, kun puhelin on liikkunut yli 20 km/h noin 20 sekuntia. Lopetusta ehdotetaan, kun auto on seissyt 3 minuuttia.</p>
+      <button class="btn btn-secondary" type="button" id="btnTestSound">Kokeile äänimerkkiä</button>
+      <h3>Käynnistys auton Bluetoothista</h3>
+      <p class="muted">Puhelimen automaatio voi avata nämä linkit, kun puhelin yhdistyy autoon tai yhteys katkeaa. Ohjeet ovat README-tiedostossa.</p>
+      <div class="copy-row"><label for="urlStart" hidden>Aloituslinkki</label><input type="text" id="urlStart" readonly><button class="btn btn-ghost" type="button" data-copy="urlStart">Kopioi</button></div>
+      <div class="copy-row"><label for="urlStop" hidden>Lopetuslinkki</label><input type="text" id="urlStop" readonly><button class="btn btn-ghost" type="button" data-copy="urlStop">Kopioi</button></div>
+    </div>
+    <div class="card">
       <h2>Varmuuskopio</h2>
       <p class="sub">Tiedot ovat vain tässä laitteessa</p>
       <p>Ajot tallentuvat vain tämän puhelimen selaimeen. Ota varmuuskopio säännöllisesti, ja palauta se, jos vaihdat puhelinta tai tyhjennät selaimen tiedot.</p>
@@ -309,8 +330,8 @@ dialog form { display: flex; flex-direction: column; max-height: calc(100dvh - 1
   <form id="tripForm" novalidate>
     <div class="dlg-head"><h2 id="dlgTitle">Ajo</h2><p id="dlgSub"></p></div>
     <div class="dlg-body">
-      <div class="field"><label for="fFrom">Lähtöpaikka <span class="req">*</span></label><input type="text" id="fFrom" required aria-required="true"></div>
-      <div class="field"><label for="fTo">Määränpää <span class="req">*</span></label><input type="text" id="fTo" required aria-required="true"></div>
+      <div class="field"><label for="fFrom">Lähtöpaikka <span class="req">*</span></label><input type="text" id="fFrom" required aria-required="true" aria-describedby="fFromHint"><div class="hint warn" id="fFromHint"></div></div>
+      <div class="field"><label for="fTo">Määränpää <span class="req">*</span></label><input type="text" id="fTo" required aria-required="true" aria-describedby="fToHint"><div class="hint warn" id="fToHint"></div></div>
       <div class="field"><label for="fKm">Ajetut kilometrit <span class="req">*</span></label><input type="text" class="num-in" id="fKm" inputmode="decimal" autocomplete="off" required aria-required="true" aria-describedby="fKmHint fKmErr"><div class="hint" id="fKmHint"></div><div class="err" id="fKmErr" role="alert"></div></div>
       <div class="field">
         <span class="label" id="fTypeLbl">Ajon tyyppi</span>
@@ -341,13 +362,22 @@ dialog form { display: flex; flex-direction: column; max-height: calc(100dvh - 1
   </form>
 </dialog>
 
+<!-- Ehdotukset: aloitus, lopetus, unohtunut ajo -->
+<dialog id="askDlg" aria-labelledby="askTitle" aria-describedby="askText">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head"><h2 id="askTitle"></h2></div>
+    <div class="dlg-body"><p class="ask-text" id="askText"></p><div id="askExtra"></div></div>
+    <div class="dlg-foot" id="askBtns"></div>
+  </form>
+</dialog>
+
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
 <script>
 'use strict';
 /* ---------- Tallennus ---------- */
 const KEY = 'ajopaivakirja.v1';
-const blank = () => ({ settings: { driver: '', cars: [], lastCar: '' }, trips: [], active: null });
+const blank = () => ({ settings: { driver: '', cars: [], lastCar: '', autoDetect: true, sound: true, keepAwake: false }, trips: [], active: null });
 const state = (() => {
   try {
     const s = JSON.parse(localStorage.getItem(KEY));
@@ -386,16 +416,36 @@ function toast(msg) {
 }
 
 /* ---------- Paikannus, osoite ja reitti ---------- */
-function getPosition() {
+// Puhelin antaa usein ensin vanhan tai karkean sijainnin (esim. paikka, jonka ohi ajettiin
+// kilometrejä sitten, kun GPS oli viimeksi päällä). Siksi kuunnellaan GPS:ää enintään 15 s,
+// hylätään vanhat sijainnit ja otetaan tarkin. Tarkka (≤ 25 m) sijainti hyväksytään heti.
+const GPS_GOOD_M = 25, GPS_ROUGH_M = 100, GPS_WAIT_MS = 15000;
+function getPosition(onProgress) {
   return new Promise((resolve, reject) => {
     if (!navigator.geolocation) return reject(new Error('Laite ei tue paikannusta.'));
-    navigator.geolocation.getCurrentPosition(
-      (p) => resolve({ lat: +p.coords.latitude.toFixed(6), lon: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy), time: new Date().toISOString() }),
-      (e) => reject(new Error(e.code === 1 ? 'Sijaintilupa on estetty. Salli sijainti selaimen asetuksista.' : e.code === 3 ? 'Sijainnin haku kesti liian kauan.' : 'Sijaintia ei saatu.')),
-      { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
-    );
+    const t0 = Date.now();
+    let best = null, stale = null, lastErr = null, done = false, id = null, timer = null;
+    const finish = (fn, v) => { if (done) return; done = true; navigator.geolocation.clearWatch(id); clearTimeout(timer); fn(v); };
+    timer = setTimeout(() => {
+      const f = best || (stale && { ...stale, stale: true });
+      if (!f) return finish(reject, lastErr || new Error('Sijaintia ei saatu.'));
+      f.rough = !!f.stale || f.acc > GPS_ROUGH_M;
+      finish(resolve, f);
+    }, GPS_WAIT_MS);
+    id = navigator.geolocation.watchPosition((p) => {
+      const ts = p.timestamp || Date.now();
+      const f = { lat: +p.coords.latitude.toFixed(6), lon: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy), time: new Date(ts).toISOString() };
+      if (ts < t0 - 2000) { if (!stale || f.acc < stale.acc) stale = f; return; } // välimuistista: ei kelpaa
+      if (!best || f.acc < best.acc) best = f;
+      if (onProgress) onProgress(best.acc);
+      if (best.acc <= GPS_GOOD_M) finish(resolve, { ...best, rough: false });
+    }, (e) => {
+      lastErr = new Error(e.code === 1 ? 'Sijaintilupa on estetty. Salli sijainti selaimen asetuksista.' : e.code === 3 ? 'Sijainnin haku kesti liian kauan.' : 'Sijaintia ei saatu.');
+      if (e.code === 1) finish(reject, lastErr);
+    }, { enableHighAccuracy: true, maximumAge: 0, timeout: GPS_WAIT_MS });
   });
 }
+const roughText = (p) => p.stale ? 'Sijainti voi olla vanha' : `Sijainti epätarkka (±${p.acc} m)`;
 async function fetchJson(url, ms) {
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
   try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
@@ -444,6 +494,7 @@ function render() {
   if (view === 'ajot') renderList();
   if (view === 'yhteenveto') renderSummary();
   if (view === 'asetukset') renderSettings();
+  updateWakeLock();
 }
 
 function carOptions(selected) {
@@ -476,13 +527,13 @@ function renderAjo() {
   }
   const pts = a.waypoints || [];
   const sp = a.startPos;
-  const startTxt = a.locating ? 'Haetaan sijaintia…' : sp ? esc(sp.addr || coordText(sp)) : '<span class="muted">Ei sijaintia, kirjoita lähtöpaikka lopuksi</span>';
+  const startTxt = a.locating ? '<span id="locMsg">Haetaan sijaintia…</span>' : sp ? esc(sp.addr || coordText(sp)) : '<span class="muted">Ei sijaintia, kirjoita lähtöpaikka lopuksi</span>';
   el.innerHTML = `<div class="card trip-active">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="badge b-pending">Ajo käynnissä</span><span class="muted">${esc(a.car)}</span></div>
     <div class="big-time num" style="margin-top:12px" id="elapsed">${durText(Date.now() - new Date(a.start))}</div>
     <div class="muted">alkoi ${fmtTime(a.start)}</div>
     <ul class="points" style="margin-top:16px">
-      <li>${startTxt}${sp && sp.acc ? `<small>Lähtö · tarkkuus ±${sp.acc} m</small>` : '<small>Lähtö</small>'}</li>
+      <li>${startTxt}${sp && sp.acc ? `<small>Lähtö · tarkkuus ±${sp.acc} m${sp.rough ? ` · ${roughText(sp)}, tarkista lähtöpaikka lopuksi` : ''}</small>` : '<small>Lähtö</small>'}</li>
       ${pts.map((p) => `<li>${esc(p.addr || coordText(p))}<small>Välipiste ${fmtTime(p.time)}</small></li>`).join('')}
     </ul>
     <div class="stack">
@@ -559,18 +610,27 @@ function renderSettings() {
       <svg viewBox="0 0 24 24" width="24" height="24" class="ico" aria-hidden="true"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></li>`).join('')
     : '<li class="muted" style="font-weight:400;font-size:14px;letter-spacing:0;border:0">Ei vielä autoja.</li>';
   $('#storageInfo').textContent = `Tallennettuja ajoja: ${state.trips.length}.`;
+  $('#setAuto').checked = !!state.settings.autoDetect;
+  $('#setSound').checked = !!state.settings.sound;
+  $('#setAwake').checked = !!state.settings.keepAwake;
+  const base = location.origin + location.pathname;
+  $('#urlStart').value = base + '?toiminto=aloita';
+  $('#urlStop').value = base + '?toiminto=lopeta';
 }
 
 /* ---------- Ajon toiminnot ---------- */
 function busy(btn, text) { btn.disabled = true; btn.dataset.label = btn.innerHTML; btn.innerHTML = `<span class="spinner" aria-hidden="true"></span>${text}`; }
 
-async function startTrip() {
-  const car = $('#startCar').value;
+// preset: { start, startPos, moved }, kun liikkeentunnistus tietää jo lähtöhetken ja -paikan
+async function startTrip(car, preset = {}) {
+  car = car || $('#startCar').value;
   state.settings.lastCar = car;
-  state.active = { id: uid(), car, start: new Date().toISOString(), startPos: null, waypoints: [], locating: true };
-  save(); renderAjo();
+  state.active = { id: uid(), car, start: preset.start || new Date().toISOString(), startPos: null, waypoints: [], locating: true };
+  if (preset.moved) state.active.movedAt = new Date().toISOString();
+  save(); render();
   try {
-    const p = await getPosition();
+    const p = preset.startPos ? { ...preset.startPos, rough: false } :
+      await getPosition((acc) => { const m = $('#locMsg'); if (m) m.textContent = `Tarkennetaan sijaintia… ±${acc} m`; });
     p.addr = await reverseGeocode(p);
     if (state.active) state.active.startPos = p;
   } catch (e) { toast(e.message + ' Voit kirjoittaa lähtöpaikan ajon lopuksi.'); }
@@ -581,18 +641,22 @@ async function startTrip() {
 async function addWaypoint(btn) {
   busy(btn, 'Haetaan sijaintia…');
   try {
-    const p = await getPosition(); p.addr = await reverseGeocode(p);
-    state.active.waypoints.push(p); save(); toast('Välipiste lisätty: ' + p.addr);
+    const p = await getPosition(progressOn(btn)); p.addr = await reverseGeocode(p);
+    state.active.waypoints.push(p); save();
+    toast('Välipiste lisätty: ' + p.addr + (p.rough ? ` (${roughText(p).toLowerCase()})` : ''));
   } catch (e) { toast(e.message); }
   renderAjo();
 }
 
-async function finishTrip(btn) {
+// preset: { end, endPos }, kun pysähdyshetki ja -paikka tiedetään jo (liikkeentunnistus)
+async function finishTrip(btn, preset = {}) {
   const a = state.active;
+  if (!a) return;
+  if (!btn) { show('ajo'); btn = $('[data-act=finish]'); }
   busy(btn, 'Haetaan määränpäätä…');
-  const end = new Date().toISOString();
+  const end = preset.end || new Date().toISOString();
   let endPos = null, km = null, hint = '', hintWarn = false;
-  try { endPos = await getPosition(); endPos.addr = await reverseGeocode(endPos); }
+  try { endPos = preset.endPos ? { ...preset.endPos, rough: false } : await getPosition(progressOn(btn)); endPos.addr = await reverseGeocode(endPos); }
   catch (e) { hint = e.message + ' Kirjoita määränpää ja kilometrit käsin.'; hintWarn = true; }
   const pts = [a.startPos, ...(a.waypoints || []), endPos].filter(Boolean);
   if (pts.length >= 2 && endPos && a.startPos) {
@@ -605,6 +669,8 @@ async function finishTrip(btn) {
       hint = `Reittipalveluun ei saatu yhteyttä. Linnuntietä ${fmtKm(h)} km. Syötä ajetut kilometrit.`; hintWarn = true;
     }
   } else if (!hint) { hint = 'Lähtöpaikan sijaintia ei ole. Syötä kilometrit käsin.'; hintWarn = true; }
+  if (km != null && pts.some((x) => x.rough)) { hint += ' Osa sijainneista oli epätarkkoja, joten tarkista kilometrit.'; hintWarn = true; }
+  const warn = (x) => x && x.rough ? `${roughText(x)}. Tarkista osoite.` : '';
   btn.disabled = false; btn.innerHTML = btn.dataset.label;
   a.endPos = endPos; save();
 
@@ -617,12 +683,15 @@ async function finishTrip(btn) {
     route: route.length > 2 ? route.join(' – ') : '', type: 'työ', purpose: '',
     odoStart, odoEnd: odoStart != null && km != null ? Math.round(odoStart + km) : null,
     km, kmSource: km != null ? 'gps' : 'käsin', startPos: a.startPos, endPos, waypoints: a.waypoints || []
-  }, hint, hintWarn);
+  }, hint, hintWarn, { from: warn(a.startPos), to: warn(endPos) });
+}
+function progressOn(btn) {
+  return (acc) => { btn.innerHTML = `<span class="spinner" aria-hidden="true"></span>Tarkennetaan sijaintia… ±${acc} m`; };
 }
 
 /* ---------- Lomake ---------- */
 let dlg = { mode: null, trip: null };
-function openDialog(mode, trip, hint = '', hintWarn = false) {
+function openDialog(mode, trip, hint = '', hintWarn = false, locWarn = {}) {
   dlg = { mode, trip };
   $('#dlgTitle').textContent = mode === 'finish' ? 'Ajo päättyi' : mode === 'new' ? 'Lisää ajo' : 'Muokkaa ajoa';
   $('#dlgSub').textContent = mode === 'finish' ? 'Tarkista tiedot ja tallenna' : mode === 'new' ? 'Kaikki tiedot käsin' : fmtDT(trip.start);
@@ -639,6 +708,7 @@ function openDialog(mode, trip, hint = '', hintWarn = false) {
   $('#fOdoEnd').value = trip.odoEnd ?? '';
   $('#fKm').value = trip.km == null ? '' : String(trip.km).replace('.', ',');
   $('#fKmHint').textContent = hint; $('#fKmHint').classList.toggle('warn', hintWarn);
+  $('#fFromHint').textContent = locWarn.from || ''; $('#fToHint').textContent = locWarn.to || '';
   for (const id of ['fPurposeErr', 'fOdoErr', 'fKmErr']) $('#' + id).textContent = '';
   for (const i of document.querySelectorAll('#tripForm [aria-invalid]')) i.removeAttribute('aria-invalid');
   $('#btnDelete').hidden = mode !== 'edit';
@@ -760,14 +830,14 @@ $('#btnExportSum').addEventListener('click', () => {
 });
 
 /* ---------- Asetukset ---------- */
-$('#setDriver').addEventListener('input', (e) => { state.settings.driver = e.target.value.trim(); save(); $('#hdrSub').textContent = state.settings.driver || 'Lisää nimesi asetuksissa'; });
+$('#setDriver').addEventListener('input', (e) => { state.settings.driver = e.target.value.trim(); save(); $('#hdrSub').textContent = state.settings.driver || 'Lisää nimesi asetuksissa'; startMonitor(); });
 $('#addCarForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const v = normPlate($('#newCar').value);
   if (!v) return;
   if (!state.settings.cars.includes(v)) state.settings.cars.push(v);
   if (!state.settings.lastCar) state.settings.lastCar = v;
-  $('#newCar').value = ''; save(); renderSettings(); toast(`Auto ${v} lisätty.`);
+  $('#newCar').value = ''; save(); renderSettings(); startMonitor(); toast(`Auto ${v} lisätty.`);
 });
 $('#btnBackup').addEventListener('click', () => {
   const d = new Date();
@@ -788,6 +858,214 @@ $('#restoreFile').addEventListener('change', async (e) => {
   } catch (err) { toast('Palautus epäonnistui: ' + err.message); }
 });
 
+/* ---------- Automaattinen tunnistus ----------
+   Selainsovellus saa sijainnin vain, kun se on auki ja näyttö päällä. Silloin seurataan nopeutta:
+   - ei ajoa käynnissä ja nopeus ≥ 20 km/h noin 20 s → ehdotetaan aloitusta
+   - ajo käynnissä ja auto paikallaan (alle 100 m:n säteellä) 3 min → ehdotetaan lopetusta
+   - sovellus avataan ja ajo on unohtunut käyntiin → ehdotetaan lopetusta viimeiseen pysähdykseen */
+const DRIVE_KMH = 20, STILL_KMH = 5, DRIVE_CONFIRM_MS = 20000, STOP_CONFIRM_MS = 180000, STILL_RADIUS_M = 100,
+  FORGOT_STOP_MS = 20 * 60000, FORGOT_TRIP_MS = 4 * 3600000;
+const mon = { id: null, last: null, prev: null, movingSince: null, lastStill: null, stillPos: null, stillSince: null, startSnooze: 0, stopDismissed: null, forgotAsked: false };
+const distM = (a, b) => haversineKm([a, b]) * 1000;
+const toPos = (f) => ({ lat: +f.lat.toFixed(6), lon: +f.lon.toFixed(6), acc: f.acc, time: new Date(f.ts).toISOString() });
+const isoOf = (ts) => new Date(ts).toISOString();
+const setupDone = () => !!(state.settings.driver && state.settings.cars.length);
+
+function startMonitor() {
+  if (mon.id != null || !navigator.geolocation || document.hidden || !state.settings.autoDetect || !setupDone()) return;
+  mon.id = navigator.geolocation.watchPosition(onFix, (e) => { if (e.code === 1) stopMonitor(); }, { enableHighAccuracy: true, maximumAge: 0 });
+}
+function stopMonitor() {
+  if (mon.id != null) navigator.geolocation.clearWatch(mon.id);
+  Object.assign(mon, { id: null, prev: null, movingSince: null, stillPos: null, stillSince: null });
+}
+function hasMoved(a) { return !!a.movedAt || !!(a.startPos && mon.stillPos && distM(a.startPos, mon.stillPos) > 500); }
+// Muistetaan viimeisin pysähdys, jotta unohtuneen ajon voi lopettaa oikeaan aikaan ja paikkaan
+function rememberStop() {
+  const a = state.active;
+  if (a && mon.stillSince != null && hasMoved(a)) { a.lastStop = { time: isoOf(mon.stillSince), pos: toPos(mon.stillPos) }; save(); }
+}
+function onFix(p) {
+  const ts = p.timestamp || Date.now();
+  if (ts < Date.now() - 10000 || p.coords.accuracy > 50) return; // vanha tai epätarkka sijainti
+  const f = { lat: p.coords.latitude, lon: p.coords.longitude, acc: Math.round(p.coords.accuracy), ts };
+  let mps = p.coords.speed;
+  if (mps == null || isNaN(mps) || mps < 0) {
+    const pr = mon.prev;
+    mps = pr && ts - pr.ts >= 2000 ? distM(pr, f) / ((ts - pr.ts) / 1000) : null;
+  }
+  if (!mon.prev || ts - mon.prev.ts >= 2000) mon.prev = f;
+  mon.last = f;
+  if (mps == null) return;
+  const kmh = mps * 3.6, a = state.active;
+  if (kmh >= DRIVE_KMH) {
+    if (mon.movingSince == null) mon.movingSince = ts;
+    mon.stillPos = mon.stillSince = mon.stopDismissed = null;
+    if (askKind === 'stop') closeAsk();
+    if (a && (!a.movedAt || a.lastStop)) { a.movedAt = a.movedAt || isoOf(ts); a.lastStop = null; save(); }
+  } else if (kmh < STILL_KMH) {
+    mon.movingSince = null;
+    mon.lastStill = f;
+    if (!mon.stillPos || distM(mon.stillPos, f) > STILL_RADIUS_M) { mon.stillPos = f; mon.stillSince = ts; }
+  } else if (kmh < 10) mon.movingSince = null;
+  checkPrompts(ts);
+}
+function checkPrompts(now) {
+  const a = state.active;
+  if (!a && mon.movingSince != null && now - mon.movingSince >= DRIVE_CONFIRM_MS && Date.now() > mon.startSnooze) askStart('motion');
+  if (a && mon.stillSince != null && hasMoved(a)) {
+    const still = now - mon.stillSince;
+    if (still >= 60000 && (!a.lastStop || a.lastStop.time !== isoOf(mon.stillSince))) rememberStop();
+    if (still >= STOP_CONFIRM_MS && mon.stopDismissed !== mon.stillSince) askStop('motion');
+  }
+}
+
+// Ehdotusikkuna. Palauttaa painetun napin arvon, 'busy' jos jokin ikkuna on jo auki, tai null.
+let askKind = null, askResolve = null;
+function ask(kind, { title, text, extra = '', buttons }) {
+  const d = $('#askDlg');
+  if (d.open || $('#tripDlg').open) return Promise.resolve('busy');
+  askKind = kind;
+  $('#askTitle').textContent = title;
+  $('#askText').textContent = text;
+  $('#askExtra').innerHTML = extra;
+  $('#askBtns').innerHTML = buttons.map((b) => `<button type="button" class="btn ${b.primary ? 'btn-primary' : 'btn-ghost'}" value="${b.value}">${esc(b.label)}</button>`).join('');
+  d.showModal();
+  alertUser();
+  return new Promise((res) => { askResolve = res; });
+}
+// Vastaus välitetään heti napin painalluksesta; Esc tai ohjelmallinen sulkeminen = null
+function answerAsk(v) {
+  const r = askResolve; askResolve = null; askKind = null;
+  if ($('#askDlg').open) $('#askDlg').close();
+  if (r) r(v);
+}
+$('#askBtns').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) answerAsk(b.value); });
+$('#askDlg').addEventListener('close', () => answerAsk(null));
+function closeAsk() { answerAsk(null); }
+
+async function askStart(source) {
+  if (!setupDone()) { if (source === 'url') show('asetukset'); return; }
+  const cars = state.settings.cars;
+  const sel = cars.includes(state.settings.lastCar) ? state.settings.lastCar : cars[0];
+  const movingSince = mon.movingSince, lastStill = mon.lastStill;
+  const r = await ask('start', {
+    title: 'Aloitetaanko ajo?',
+    text: source === 'motion' ? 'Puhelin liikkuu ajonopeutta. Lähtöaika ja -paikka otetaan hetkestä, jolloin liike alkoi.' : 'Puhelin yhdistyi autoon.',
+    extra: cars.length > 1 ? `<div class="field"><label for="askCar">Auto</label><select id="askCar">${carOptions(sel)}</select></div>` : '',
+    buttons: [{ label: 'Ei nyt', value: 'no' }, { label: 'Aloita ajo', value: 'yes', primary: true }]
+  });
+  if (r === 'busy') return;
+  if (r !== 'yes') { if (source === 'motion') mon.startSnooze = Date.now() + 15 * 60000; return; }
+  if (state.active) return;
+  const car = cars.length > 1 ? $('#askCar').value : sel;
+  let preset = {};
+  if (source === 'motion' && movingSince != null) {
+    // Lähtöpaikka = viimeinen paikallaanolo ennen liikkeelle lähtöä, jos se on tiedossa
+    const dep = lastStill && lastStill.ts >= movingSince - 15 * 60000 && lastStill.ts <= movingSince ? lastStill : null;
+    preset = { start: isoOf(dep ? dep.ts : movingSince), startPos: dep ? toPos(dep) : null, moved: true };
+  }
+  show('ajo');
+  startTrip(car, preset);
+}
+
+async function askStop(source) {
+  const a = state.active;
+  if (!a) return;
+  const at = mon.stillSince, pos = mon.stillPos;
+  const fromMotion = source === 'motion' && at != null && !!pos;
+  const r = await ask('stop', {
+    title: 'Lopetetaanko ajo?',
+    text: fromMotion ? `Auto on ollut paikallaan klo ${fmtTime(isoOf(at))} alkaen.` : 'Puhelimen yhteys autoon katkesi.',
+    buttons: [{ label: 'Jatka ajoa', value: 'no' }, { label: 'Lopeta ajo', value: 'yes', primary: true }]
+  });
+  if (r === 'busy') return;
+  if (r !== 'yes') { if (fromMotion) mon.stopDismissed = at; return; }
+  if (state.active !== a) return;
+  finishTrip(null, fromMotion ? { end: isoOf(at), endPos: toPos(pos) } : {});
+}
+
+async function checkForgotten() {
+  const a = state.active;
+  if (!a || mon.forgotAsked || !setupDone() || mon.movingSince != null) return;
+  if (a.forgotSnooze && Date.now() < a.forgotSnooze) return;
+  const ls = a.lastStop, now = Date.now();
+  const stoppedLong = !!ls && now - Date.parse(ls.time) >= FORGOT_STOP_MS;
+  if (!stoppedLong && now - Date.parse(a.start) < FORGOT_TRIP_MS) return;
+  mon.forgotAsked = true;
+  const buttons = [{ label: 'Jatka ajoa', value: 'no' }];
+  if (stoppedLong) buttons.push({ label: 'Lopeta nyt', value: 'now' }, { label: `Lopeta klo ${fmtTime(ls.time)}`, value: 'stop', primary: true });
+  else buttons.push({ label: 'Lopeta ajo', value: 'now', primary: true });
+  const r = await ask('forgot', {
+    title: 'Unohtuiko ajo käyntiin?',
+    text: stoppedLong
+      ? `Ajo alkoi ${fmtDT(a.start)}. Auto pysähtyi viimeksi klo ${fmtTime(ls.time)}. Lopetetaanko ajo siihen?`
+      : `Ajo on ollut käynnissä ${durText(now - Date.parse(a.start))} (alkoi ${fmtDT(a.start)}). Lopetetaanko ajo? Tarkista saapumisaika ja määränpää.`,
+    buttons
+  });
+  if (r === 'busy') { mon.forgotAsked = false; return; }
+  if (r === 'stop') finishTrip(null, { end: ls.time, endPos: ls.pos });
+  else if (r === 'now') finishTrip(null);
+  else if (state.active === a) { a.forgotSnooze = Date.now() + 2 * 3600000; save(); }
+}
+
+// Bluetooth-automaatiot avaavat sovelluksen osoitteella ?toiminto=aloita tai ?toiminto=lopeta
+function handleUrlAction() {
+  const u = new URL(location.href), t = u.searchParams.get('toiminto');
+  if (!t) return false;
+  u.searchParams.delete('toiminto');
+  history.replaceState(null, '', u.pathname + u.search + u.hash);
+  if (t === 'aloita' && !state.active) { askStart('url'); return true; }
+  if (t === 'lopeta' && state.active) { askStop('url'); return true; }
+  return false;
+}
+
+// Äänimerkki (Web Audio) ja värinä. Selain sallii äänen vasta, kun sovellusta on kosketettu.
+let audioCtx = null;
+function unlockAudio() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  } catch (e) {}
+}
+document.addEventListener('pointerdown', unlockAudio);
+function alertUser(force) {
+  if (!force && !state.settings.sound) return;
+  if (navigator.vibrate && (!navigator.userActivation || navigator.userActivation.hasBeenActive)) navigator.vibrate([200, 100, 200]);
+  if (!audioCtx) return;
+  const t = audioCtx.currentTime;
+  [[0, 880], [0.28, 1175]].forEach(([d, hz]) => {
+    const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+    o.type = 'sine'; o.frequency.value = hz;
+    g.gain.setValueAtTime(0.0001, t + d);
+    g.gain.exponentialRampToValueAtTime(0.5, t + d + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + d + 0.22);
+    o.connect(g).connect(audioCtx.destination);
+    o.start(t + d); o.stop(t + d + 0.25);
+  });
+}
+
+// Näyttö päällä ajon aikana (Screen Wake Lock)
+let wakeLock = null;
+async function updateWakeLock() {
+  const want = !!(state.settings.keepAwake && state.active && !document.hidden);
+  try {
+    if (want && !wakeLock && navigator.wakeLock) {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } else if (!want && wakeLock) { await wakeLock.release(); wakeLock = null; }
+  } catch (e) {}
+}
+
+for (const [id, key] of [['setAuto', 'autoDetect'], ['setSound', 'sound'], ['setAwake', 'keepAwake']]) {
+  $('#' + id).addEventListener('change', (e) => {
+    state.settings[key] = e.target.checked; save();
+    if (key === 'autoDetect') { stopMonitor(); startMonitor(); }
+    updateWakeLock();
+  });
+}
+$('#btnTestSound').addEventListener('click', () => { unlockAudio(); setTimeout(() => alertUser(true), 50); });
+
 /* ---------- Tapahtumat ---------- */
 document.addEventListener('click', (e) => {
   const nav = e.target.closest('nav.tabs button'); if (nav) return show(nav.dataset.view);
@@ -795,13 +1073,19 @@ document.addEventListener('click', (e) => {
   if (ed) { const t = state.trips.find((x) => x.id === ed.dataset.edit); if (t) openDialog('edit', { ...t }); return; }
   const dc = e.target.closest('[data-delcar]');
   if (dc) { state.settings.cars = state.settings.cars.filter((c) => c !== dc.dataset.delcar); save(); renderSettings(); return; }
+  const cp = e.target.closest('[data-copy]');
+  if (cp) {
+    const inp = $('#' + cp.dataset.copy);
+    (navigator.clipboard ? navigator.clipboard.writeText(inp.value) : Promise.reject()).then(() => toast('Linkki kopioitu.'), () => inp.select());
+    return;
+  }
   const act = e.target.closest('[data-act]'); if (!act) return;
   const a = act.dataset.act;
   if (a === 'goSettings') show('asetukset');
   if (a === 'start') startTrip();
   if (a === 'waypoint') addWaypoint(act);
   if (a === 'finish') finishTrip(act);
-  if (a === 'cancelTrip' && confirm('Perutaanko käynnissä oleva ajo? Sitä ei tallenneta.')) { state.active = null; save(); renderAjo(); }
+  if (a === 'cancelTrip' && confirm('Perutaanko käynnissä oleva ajo? Sitä ei tallenneta.')) { state.active = null; save(); render(); }
   if (a === 'manual') {
     if (!state.settings.cars.length) { toast('Lisää ensin auto asetuksissa.'); return show('asetukset'); }
     const now = new Date(); now.setSeconds(0, 0);
@@ -819,11 +1103,17 @@ $('#fCar').addEventListener('change', () => {
 $('#listMonth').addEventListener('change', renderList);
 $('#sumMonth').addEventListener('change', renderSummary);
 setInterval(() => { const el = $('#elapsed'); if (el && state.active) el.textContent = durText(Date.now() - new Date(state.active.start)); }, 15000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden && view === 'ajo') renderAjo(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { rememberStop(); stopMonitor(); mon.forgotAsked = false; }
+  else { if (view === 'ajo') renderAjo(); startMonitor(); checkForgotten(); }
+  updateWakeLock();
+});
 
 // Jos sovellus suljettiin kesken sijainnin haun, älä jää "Haetaan…"-tilaan
 if (state.active && state.active.locating) { state.active.locating = false; save(); }
 render();
+startMonitor();
+if (!handleUrlAction()) checkForgotten();
 
 if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
