@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="fi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ajopäiväkirja</title>
+<meta name="description" content="Ajopäiväkirja: lähtö- ja määränpää GPS:llä, kilometrit automaattisesti, vienti Exceliin.">
+<meta name="theme-color" content="#f9f9ff" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111318" media="(prefers-color-scheme: dark)">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ajopäiväkirja">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* Material Design 3 -väriroolit (Material Theme Builder, sininen lähtöväri). Vaalea + tumma teema. */
+:root {
+  color-scheme: light dark;
+  --primary: #415f91; --on-primary: #ffffff; --primary-container: #d6e3ff; --on-primary-container: #284777;
+  --secondary-container: #dae2f9; --on-secondary-container: #3e4759;
+  --tertiary-container: #fad8fd; --on-tertiary-container: #573e5c;
+  --error: #ba1a1a; --error-container: #ffdad6; --on-error-container: #93000a;
+  --warn: #8a5100;
+  --surface: #f9f9ff; --on-surface: #191c20; --on-surface-variant: #44474e;
+  --outline: #74777f; --outline-variant: #c4c6d0;
+  --sc-low: #f3f3fa; --sc: #ededf4; --sc-high: #e7e8ee; --sc-highest: #e2e2e9;
+  --inverse-surface: #2e3036; --inverse-on-surface: #f0f0f7;
+  --elev-1: 0 1px 2px rgba(0,0,0,.3), 0 1px 3px 1px rgba(0,0,0,.15);
+  --elev-3: 0 1px 3px rgba(0,0,0,.3), 0 4px 8px 3px rgba(0,0,0,.15);
+  --nav-h: 80px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --primary: #aac7ff; --on-primary: #0a305f; --primary-container: #284777; --on-primary-container: #d6e3ff;
+    --secondary-container: #3e4759; --on-secondary-container: #dae2f9;
+    --tertiary-container: #573e5c; --on-tertiary-container: #fad8fd;
+    --error: #ffb4ab; --error-container: #93000a; --on-error-container: #ffdad6;
+    --warn: #ffb870;
+    --surface: #111318; --on-surface: #e2e2e9; --on-surface-variant: #c4c6d0;
+    --outline: #8e9099; --outline-variant: #44474e;
+    --sc-low: #191c20; --sc: #1d2024; --sc-high: #282a2f; --sc-highest: #33353a;
+    --inverse-surface: #e2e2e9; --inverse-on-surface: #2e3036;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--surface); color: var(--on-surface);
+  font-family: "Roboto", system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 16px; line-height: 1.5;
+  letter-spacing: .01em; -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; }
+[hidden] { display: none !important; }
+
+header.app { background: var(--surface); padding: calc(12px + env(safe-area-inset-top)) 16px 8px; position: sticky; top: 0; z-index: 45; }
+header.app .inner { max-width: 640px; margin: 0 auto; }
+header.app h1 { margin: 0; font-size: 22px; font-weight: 400; line-height: 28px; }
+header.app p { margin: 0; font-size: 14px; color: var(--on-surface-variant); }
+
+main { max-width: 640px; margin: 0 auto; padding: 8px 16px calc(var(--nav-h) + 32px + env(safe-area-inset-bottom)); }
+
+.card { background: var(--sc-low); border-radius: 12px; box-shadow: var(--elev-1); padding: 20px; margin-bottom: 16px; }
+.card h2 { margin: 0; font-size: 22px; font-weight: 400; line-height: 28px; }
+.card .sub { margin: 4px 0 16px; font-size: 14px; color: var(--on-surface-variant); }
+.section-title { font-size: 14px; font-weight: 500; color: var(--primary); margin: 24px 4px 8px; }
+.muted { color: var(--on-surface-variant); font-size: 14px; }
+p { margin: 0 0 12px; }
+
+/* Outlined text field */
+.field { margin-bottom: 16px; }
+.field > label, .field > .label { display: block; font-size: 12px; font-weight: 500; letter-spacing: .03em; color: var(--on-surface-variant); margin: 0 0 4px 4px; }
+.req { color: var(--error); }
+input[type=text], input[type=datetime-local], select, textarea {
+  width: 100%; min-height: 56px; padding: 14px 16px; font: inherit; font-size: 16px; color: var(--on-surface);
+  background: transparent; border: 1px solid var(--outline); border-radius: 4px;
+}
+select { appearance: none; -webkit-appearance: none; padding-right: 44px; background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z' fill='%2374777f'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center; }
+select option { background: var(--sc-high); color: var(--on-surface); }
+textarea { min-height: 80px; resize: vertical; }
+input:hover, select:hover, textarea:hover { border-color: var(--on-surface); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+input.num-in { text-align: right; font-variant-numeric: tabular-nums; }
+input[aria-invalid=true] { border-color: var(--error); box-shadow: inset 0 0 0 1px var(--error); }
+.hint { font-size: 12px; color: var(--on-surface-variant); margin: 4px 16px 0; }
+.hint:empty, .err:empty { display: none; }
+.hint.warn { color: var(--warn); }
+.err { font-size: 12px; color: var(--error); margin: 4px 16px 0; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.row2 .field { min-width: 0; }
+
+/* Segmented button */
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--outline); border-radius: 22px; overflow: hidden; }
+.seg input { position: absolute; opacity: 0; pointer-events: none; }
+.seg label { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; font-size: 14px; font-weight: 500; color: var(--on-surface); cursor: pointer; }
+.seg label:last-of-type { border-left: 1px solid var(--outline); }
+.seg input:checked + label { background: var(--secondary-container); color: var(--on-secondary-container); }
+.seg input:checked + label::before { content: "✓"; font-weight: 700; }
+.seg input:focus-visible + label { outline: 2px solid var(--primary); outline-offset: -3px; }
+
+/* Buttons: filled, outlined, text. ::after on M3:n "state layer". */
+.btn {
+  position: relative; overflow: hidden; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 40px; padding: 0 24px; border-radius: 20px; border: 0; background: transparent;
+  font: inherit; font-size: 14px; font-weight: 500; letter-spacing: .01em; cursor: pointer; text-decoration: none;
+}
+.btn::after { content: ""; position: absolute; inset: 0; background: currentColor; opacity: 0; transition: opacity 120ms; pointer-events: none; }
+.btn:hover:not(:disabled)::after { opacity: .08; }
+.btn:active:not(:disabled)::after { opacity: .12; }
+.btn:disabled { opacity: .38; cursor: not-allowed; }
+.btn-primary { background: var(--primary); color: var(--on-primary); }
+.btn-primary:hover:not(:disabled) { box-shadow: var(--elev-1); }
+.btn-secondary { border: 1px solid var(--outline); color: var(--primary); }
+.btn-destructive { border: 1px solid var(--outline); color: var(--error); }
+.btn-ghost { color: var(--primary); padding: 0 12px; }
+.btn-danger-text { color: var(--error); }
+.btn-lg { min-height: 56px; border-radius: 16px; font-size: 16px; width: 100%; }
+.btn-block { width: 100%; }
+.stack > * + * { margin-top: 8px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.icon-btn { width: 48px; height: 48px; display: inline-flex; align-items: center; justify-content: center;
+  border: 0; background: transparent; border-radius: 50%; color: var(--on-surface-variant); cursor: pointer; }
+.icon-btn:hover { background: color-mix(in srgb, var(--on-surface-variant) 10%, transparent); }
+
+/* Chips */
+.badge { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 500; letter-spacing: .03em; white-space: nowrap; }
+.b-pending { background: var(--primary); color: var(--on-primary); }
+.b-work { background: var(--secondary-container); color: var(--on-secondary-container); }
+.b-private { background: var(--tertiary-container); color: var(--on-tertiary-container); }
+.b-ok { background: var(--primary-container); color: var(--on-primary-container); }
+
+/* Käynnissä oleva ajo */
+.trip-active { background: var(--primary-container); color: var(--on-primary-container); box-shadow: none; }
+.trip-active .muted { color: var(--on-primary-container); }
+.big-time { font-size: 36px; font-weight: 400; line-height: 44px; }
+.points { list-style: none; padding: 0; margin: 0 0 16px; border-left: 2px solid currentColor; }
+.points li { padding: 2px 0 8px 14px; font-size: 16px; }
+.points li small { display: block; font-size: 12px; letter-spacing: .03em; }
+
+/* Ajolista */
+.toolbar { display: flex; gap: 8px; align-items: end; margin-bottom: 16px; }
+.toolbar .field { flex: 1; margin: 0; }
+.toolbar .btn { min-height: 56px; }
+.list { list-style: none; margin: 0; padding: 0; }
+.list li + li { margin-top: 8px; }
+.trip-item {
+  display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+  background: var(--sc-low); border: 0; border-radius: 12px; padding: 16px; box-shadow: var(--elev-1);
+}
+.trip-item:hover { background: var(--sc); }
+.ti-top { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+.ti-date { font-size: 12px; font-weight: 500; letter-spacing: .03em; color: var(--on-surface-variant); }
+.ti-km { font-size: 22px; color: var(--primary); white-space: nowrap; }
+.ti-route { font-weight: 500; margin: 2px 0 6px; overflow-wrap: anywhere; }
+.ti-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; color: var(--on-surface-variant); }
+
+/* Yhteenveto */
+.kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.kpi { background: var(--sc-low); border-radius: 12px; box-shadow: var(--elev-1); padding: 16px; }
+.kpi .k { font-size: 12px; font-weight: 500; letter-spacing: .03em; color: var(--on-surface-variant); }
+.kpi .v { font-size: 28px; line-height: 36px; color: var(--primary); font-variant-numeric: tabular-nums; }
+.table-card { padding: 0; overflow: hidden; }
+.table-card h3 { margin: 0; padding: 16px 16px 8px; font-size: 16px; font-weight: 500; }
+.tscroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-size: 12px; font-weight: 500; letter-spacing: .03em; color: var(--on-surface-variant); padding: 8px 12px; border-bottom: 1px solid var(--outline-variant); white-space: nowrap; }
+td { padding: 12px; border-bottom: 1px solid var(--outline-variant); }
+td.n, th.n { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+tr.sum td { font-weight: 700; border-bottom: 0; }
+
+/* Asetukset */
+.chips { list-style: none; margin: 0 0 12px; padding: 0; }
+.chips li { display: flex; align-items: center; justify-content: space-between; min-height: 56px; border-bottom: 1px solid var(--outline-variant); padding-left: 4px; font-size: 16px; font-weight: 500; letter-spacing: .05em; }
+.inline-add { display: flex; gap: 8px; align-items: center; }
+.inline-add input { flex: 1; text-transform: uppercase; }
+.inline-add .btn { min-height: 56px; border-radius: 16px; }
+
+.empty { text-align: center; padding: 32px 16px; color: var(--on-surface-variant); }
+.empty strong { display: block; color: var(--on-surface); font-size: 16px; font-weight: 500; margin-bottom: 4px; }
+
+/* Navigation bar */
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 45; background: var(--sc); padding-bottom: env(safe-area-inset-bottom); }
+nav.tabs .inner { max-width: 640px; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr); }
+nav.tabs button {
+  height: var(--nav-h); border: 0; background: transparent; font: inherit; font-size: 12px; font-weight: 500; letter-spacing: .03em;
+  color: var(--on-surface-variant); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; cursor: pointer;
+}
+nav.tabs .ind { width: 64px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; transition: background-color 150ms; }
+nav.tabs button:hover .ind { background: color-mix(in srgb, var(--on-surface-variant) 10%, transparent); }
+nav.tabs button[aria-current=page] { color: var(--on-surface); }
+nav.tabs button[aria-current=page] .ind { background: var(--secondary-container); color: var(--on-secondary-container); }
+nav.tabs svg { width: 24px; height: 24px; }
+.ico { fill: currentColor; }
+
+/* Dialog */
+dialog {
+  width: min(560px, calc(100vw - 16px)); max-height: calc(100dvh - 16px); padding: 0; border: 0;
+  border-radius: 28px; background: var(--sc-high); color: var(--on-surface); box-shadow: var(--elev-3);
+}
+dialog::backdrop { background: rgba(0,0,0,.32); }
+dialog form { display: flex; flex-direction: column; max-height: calc(100dvh - 16px); }
+.dlg-head { padding: 24px 24px 12px; }
+.dlg-head h2 { margin: 0; font-size: 24px; font-weight: 400; line-height: 32px; }
+.dlg-head p { margin: 0; font-size: 14px; color: var(--on-surface-variant); }
+.dlg-body { padding: 16px 24px 4px; overflow-y: auto; border-top: 1px solid var(--outline-variant); border-bottom: 1px solid var(--outline-variant); }
+.dlg-foot { padding: 16px 24px calc(20px + env(safe-area-inset-bottom)); display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.dlg-foot #btnDelete { margin-right: auto; }
+
+/* Snackbar */
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(var(--nav-h) + 12px + env(safe-area-inset-bottom));
+  z-index: 60; background: var(--inverse-surface); color: var(--inverse-on-surface); padding: 14px 16px; border-radius: 4px;
+  font-size: 14px; width: max-content; max-width: calc(100vw - 32px); box-shadow: var(--elev-3);
+}
+.spinner { width: 18px; height: 18px; border: 3px solid color-mix(in srgb, currentColor 30%, transparent); border-top-color: currentColor; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+@media (min-width: 560px) { .kpis { grid-template-columns: repeat(4, 1fr); } }
+</style>
+</head>
+<body>
+<header class="app"><div class="inner">
+  <h1>Ajopäiväkirja</h1>
+  <p id="hdrSub">&nbsp;</p>
+</div></header>
+
+<main>
+  <!-- AJO -->
+  <section id="view-ajo" aria-labelledby="t-ajo">
+    <h2 id="t-ajo" hidden>Ajo</h2>
+    <div id="ajoContent"></div>
+  </section>
+
+  <!-- AJOT -->
+  <section id="view-ajot" hidden>
+    <div class="toolbar">
+      <div class="field"><label for="listMonth">Näytä</label><select id="listMonth"></select></div>
+      <button class="btn btn-secondary" id="btnExportList" type="button">Vie Exceliin</button>
+    </div>
+    <ul class="list" id="tripList"></ul>
+    <div class="stack" style="margin-top:16px"><button class="btn btn-ghost btn-block" type="button" data-act="manual">+ Lisää ajo käsin</button></div>
+  </section>
+
+  <!-- YHTEENVETO -->
+  <section id="view-yhteenveto" hidden>
+    <div class="toolbar">
+      <div class="field"><label for="sumMonth">Kausi</label><select id="sumMonth"></select></div>
+      <button class="btn btn-secondary" id="btnExportSum" type="button">Vie Exceliin</button>
+    </div>
+    <div id="sumContent"></div>
+  </section>
+
+  <!-- ASETUKSET -->
+  <section id="view-asetukset" hidden>
+    <div class="card">
+      <h2>Kuljettaja</h2>
+      <p class="sub">Nimesi tallentuu jokaiseen ajoon</p>
+      <div class="field"><label for="setDriver">Nimi</label><input type="text" id="setDriver" autocomplete="name" placeholder="Etunimi Sukunimi"></div>
+    </div>
+    <div class="card">
+      <h2>Autot</h2>
+      <p class="sub">Rekisteritunnukset, joilla ajat</p>
+      <ul class="chips" id="carList"></ul>
+      <form class="inline-add" id="addCarForm">
+        <label for="newCar" hidden>Uusi rekisteritunnus</label>
+        <input type="text" id="newCar" placeholder="ABC-123" autocomplete="off" autocapitalize="characters" maxlength="10">
+        <button class="btn btn-primary" type="submit">Lisää</button>
+      </form>
+    </div>
+    <div class="card">
+      <h2>Varmuuskopio</h2>
+      <p class="sub">Tiedot ovat vain tässä laitteessa</p>
+      <p>Ajot tallentuvat vain tämän puhelimen selaimeen. Ota varmuuskopio säännöllisesti, ja palauta se, jos vaihdat puhelinta tai tyhjennät selaimen tiedot.</p>
+      <div class="actions">
+        <button class="btn btn-secondary" type="button" id="btnBackup">Tallenna varmuuskopio</button>
+        <label class="btn btn-secondary" for="restoreFile">Palauta varmuuskopiosta</label>
+        <input type="file" id="restoreFile" accept=".json,application/json" hidden>
+      </div>
+      <p class="muted" id="storageInfo" style="margin-top:12px"></p>
+    </div>
+    <div class="card">
+      <h2>Tietoa</h2>
+      <p class="sub">Paikannus ja kilometrit</p>
+      <p>Lähtö- ja määränpää haetaan puhelimen GPS:llä. Osoite haetaan OpenStreetMapin Nominatim-palvelusta ja ajoreitin pituus OSRM-reitityspalvelusta. Palveluille lähetetään vain koordinaatit.</p>
+      <p class="muted">Kartta-aineisto © OpenStreetMapin tekijät (ODbL).</p>
+    </div>
+  </section>
+</main>
+
+<nav class="tabs" aria-label="Päävalikko"><div class="inner">
+  <button type="button" data-view="ajo" aria-current="page">
+    <span class="ind"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/></svg></span>Ajo</button>
+  <button type="button" data-view="ajot">
+    <span class="ind"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M3 13h2v-2H3v2zm0 4h2v-2H3v2zm0-8h2V7H3v2zm4 4h14v-2H7v2zm0 4h14v-2H7v2zM7 7v2h14V7H7z"/></svg></span>Ajot</button>
+  <button type="button" data-view="yhteenveto">
+    <span class="ind"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M5 9.2h3V19H5zM10.6 5h2.8v14h-2.8zm5.6 8H19v6h-2.8z"/></svg></span>Yhteenveto</button>
+  <button type="button" data-view="asetukset">
+    <span class="ind"><svg viewBox="0 0 24 24" class="ico" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></span>Asetukset</button>
+</div></nav>
+
+<!-- Ajon lomake: lopetus, käsin lisäys ja muokkaus -->
+<dialog id="tripDlg" aria-labelledby="dlgTitle">
+  <form id="tripForm" novalidate>
+    <div class="dlg-head"><h2 id="dlgTitle">Ajo</h2><p id="dlgSub"></p></div>
+    <div class="dlg-body">
+      <div class="field"><label for="fFrom">Lähtöpaikka <span class="req">*</span></label><input type="text" id="fFrom" required aria-required="true"></div>
+      <div class="field"><label for="fTo">Määränpää <span class="req">*</span></label><input type="text" id="fTo" required aria-required="true"></div>
+      <div class="field"><label for="fKm">Ajetut kilometrit <span class="req">*</span></label><input type="text" class="num-in" id="fKm" inputmode="decimal" autocomplete="off" required aria-required="true" aria-describedby="fKmHint fKmErr"><div class="hint" id="fKmHint"></div><div class="err" id="fKmErr" role="alert"></div></div>
+      <div class="field">
+        <span class="label" id="fTypeLbl">Ajon tyyppi</span>
+        <div class="seg" role="radiogroup" aria-labelledby="fTypeLbl">
+          <input type="radio" name="fType" id="fTypeWork" value="työ" checked><label for="fTypeWork">Työajo</label>
+          <input type="radio" name="fType" id="fTypePriv" value="yksityinen"><label for="fTypePriv">Yksityisajo</label>
+        </div>
+      </div>
+      <div class="field"><label for="fPurpose">Ajon tarkoitus <span class="req" id="fPurposeReq">*</span></label><input type="text" id="fPurpose" list="purposeList" placeholder="Esim. asiakaskäynti, työmaa" aria-describedby="fPurposeErr"><div class="err" id="fPurposeErr" role="alert"></div><datalist id="purposeList"></datalist></div>
+      <div class="row2">
+        <div class="field"><label for="fOdoStart">Mittari alussa (km)</label><input type="text" class="num-in" id="fOdoStart" inputmode="numeric" autocomplete="off"></div>
+        <div class="field"><label for="fOdoEnd">Mittari lopussa (km)</label><input type="text" class="num-in" id="fOdoEnd" inputmode="numeric" autocomplete="off" aria-describedby="fOdoErr"></div>
+      </div>
+      <div class="err" id="fOdoErr" role="alert" style="margin:-8px 0 12px"></div>
+      <div class="field"><label for="fRoute">Reitti</label><textarea id="fRoute" aria-describedby="fRouteHint"></textarea><div class="hint" id="fRouteHint">Esim. Helsinki – Espoo, Tapiola – Helsinki</div></div>
+      <div class="row2">
+        <div class="field"><label for="fCar">Rekisteritunnus <span class="req">*</span></label><select id="fCar" required aria-required="true"></select></div>
+        <div class="field"><label for="fDriver">Kuljettaja <span class="req">*</span></label><input type="text" id="fDriver" required aria-required="true" autocomplete="name"></div>
+      </div>
+      <div class="field"><label for="fStart">Lähtöaika <span class="req">*</span></label><input type="datetime-local" id="fStart" required aria-required="true"></div>
+      <div class="field"><label for="fEnd">Saapumisaika <span class="req">*</span></label><input type="datetime-local" id="fEnd" required aria-required="true"></div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn btn-destructive" id="btnDelete" hidden>Poista</button>
+      <button type="button" class="btn btn-secondary" id="btnCancel">Peruuta</button>
+      <button type="submit" class="btn btn-primary">Tallenna</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script>
+'use strict';
+/* ---------- Tallennus ---------- */
+const KEY = 'ajopaivakirja.v1';
+const blank = () => ({ settings: { driver: '', cars: [], lastCar: '' }, trips: [], active: null });
+const state = (() => {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s) return { ...blank(), ...s, settings: { ...blank().settings, ...s.settings } };
+  } catch (e) {}
+  return blank();
+})();
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(state)); }
+  catch (e) { toast('Tallennus epäonnistui: ' + e.message); }
+}
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+/* ---------- Apufunktiot ---------- */
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const pad = (n) => String(n).padStart(2, '0');
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const fmtKm = (n) => (n == null || isNaN(n)) ? '–' : Number(n).toLocaleString('fi-FI', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const fmtDate = (iso) => new Date(iso).toLocaleDateString('fi-FI', { weekday: 'short', day: 'numeric', month: 'numeric', year: 'numeric' });
+const fmtTime = (iso) => new Date(iso).toLocaleTimeString('fi-FI', { hour: '2-digit', minute: '2-digit' });
+const fmtDT = (iso) => new Date(iso).toLocaleString('fi-FI', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+const toLocalInput = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const fromLocalInput = (v) => v ? new Date(v).toISOString() : null;
+const monthKey = (iso) => { const d = new Date(iso); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}`; };
+const monthLabel = (k) => { const [y, m] = k.split('-'); const s = new Date(+y, +m - 1, 1).toLocaleDateString('fi-FI', { month: 'long', year: 'numeric' }); return s.charAt(0).toUpperCase() + s.slice(1); };
+const parseNum = (v) => { if (v === '' || v == null) return null; const n = Number(String(v).replace(',', '.')); return isNaN(n) ? null : n; };
+const normPlate = (s) => s.trim().toUpperCase().replace(/\s+/g, '').replace(/^([A-ZÅÄÖ]+)(\d+)$/, '$1-$2');
+const coordText = (p) => `${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`;
+const durText = (ms) => { const m = Math.max(0, Math.round(ms / 60000)); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; };
+
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 4500);
+}
+
+/* ---------- Paikannus, osoite ja reitti ---------- */
+function getPosition() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('Laite ei tue paikannusta.'));
+    navigator.geolocation.getCurrentPosition(
+      (p) => resolve({ lat: +p.coords.latitude.toFixed(6), lon: +p.coords.longitude.toFixed(6), acc: Math.round(p.coords.accuracy), time: new Date().toISOString() }),
+      (e) => reject(new Error(e.code === 1 ? 'Sijaintilupa on estetty. Salli sijainti selaimen asetuksista.' : e.code === 3 ? 'Sijainnin haku kesti liian kauan.' : 'Sijaintia ei saatu.')),
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 10000 }
+    );
+  });
+}
+async function fetchJson(url, ms) {
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), ms);
+  try { const r = await fetch(url, { signal: ctl.signal }); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+async function reverseGeocode(p) {
+  try {
+    const j = await fetchJson(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${p.lat}&lon=${p.lon}&zoom=18&addressdetails=1&accept-language=fi`, 8000);
+    const a = j.address || {};
+    const street = [a.road || a.pedestrian || a.footway || a.path, a.house_number].filter(Boolean).join(' ');
+    const place = a.city || a.town || a.village || a.municipality || a.hamlet || a.suburb || '';
+    return [street, place].filter(Boolean).join(', ') || j.display_name || coordText(p);
+  } catch (e) { return coordText(p); }
+}
+async function routeKm(points) {
+  const coords = points.map((p) => `${p.lon},${p.lat}`).join(';');
+  const j = await fetchJson(`https://router.project-osrm.org/route/v1/driving/${coords}?overview=false`, 10000);
+  if (j.code !== 'Ok' || !j.routes || !j.routes[0]) throw new Error('Reittiä ei löytynyt');
+  return j.routes[0].distance / 1000;
+}
+function haversineKm(pts) {
+  let s = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1], b = pts[i], R = 6371, r = Math.PI / 180;
+    const dLat = (b.lat - a.lat) * r, dLon = (b.lon - a.lon) * r;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLon / 2) ** 2;
+    s += 2 * R * Math.asin(Math.sqrt(h));
+  }
+  return s;
+}
+
+/* ---------- Näkymät ---------- */
+let view = 'ajo';
+function show(v) {
+  view = v;
+  for (const s of document.querySelectorAll('main > section')) s.hidden = s.id !== 'view-' + v;
+  for (const b of document.querySelectorAll('nav.tabs button')) {
+    if (b.dataset.view === v) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  }
+  render();
+  window.scrollTo(0, 0);
+}
+function render() {
+  $('#hdrSub').textContent = state.settings.driver ? state.settings.driver : 'Lisää nimesi asetuksissa';
+  if (view === 'ajo') renderAjo();
+  if (view === 'ajot') renderList();
+  if (view === 'yhteenveto') renderSummary();
+  if (view === 'asetukset') renderSettings();
+}
+
+function carOptions(selected) {
+  const cars = [...state.settings.cars];
+  if (selected && !cars.includes(selected)) cars.push(selected);
+  return cars.map((c) => `<option value="${esc(c)}"${c === selected ? ' selected' : ''}>${esc(c)}</option>`).join('');
+}
+function lastOdo(car, beforeIso) {
+  const t = state.trips.filter((x) => x.car === car && x.odoEnd != null && (!beforeIso || x.end <= beforeIso)).sort((a, b) => b.end.localeCompare(a.end))[0];
+  return t ? t.odoEnd : null;
+}
+
+function renderAjo() {
+  const el = $('#ajoContent');
+  const a = state.active;
+  if (!state.settings.driver || !state.settings.cars.length) {
+    el.innerHTML = `<div class="card"><h2>Tervetuloa</h2><p class="sub">Kaksi asiaa ennen ensimmäistä ajoa</p>
+      <p>Lisää asetuksiin nimesi ja auton rekisteritunnus. Sen jälkeen ajon aloitus on yksi painallus.</p>
+      <button class="btn btn-primary btn-block" type="button" data-act="goSettings">Avaa asetukset</button></div>`;
+    return;
+  }
+  if (!a) {
+    const sel = state.settings.cars.includes(state.settings.lastCar) ? state.settings.lastCar : state.settings.cars[0];
+    el.innerHTML = `<div class="card"><h2>Uusi ajo</h2><p class="sub">GPS tallentaa lähtöpaikan</p>
+      <div class="field"><label for="startCar">Auto</label><select id="startCar">${carOptions(sel)}</select></div>
+      <div class="stack"><button class="btn btn-primary btn-lg" type="button" data-act="start">Aloita ajo</button>
+      <button class="btn btn-ghost btn-block" type="button" data-act="manual">Lisää ajo käsin</button></div></div>
+      ${recentHtml()}`;
+    return;
+  }
+  const pts = a.waypoints || [];
+  const sp = a.startPos;
+  const startTxt = a.locating ? 'Haetaan sijaintia…' : sp ? esc(sp.addr || coordText(sp)) : '<span class="muted">Ei sijaintia, kirjoita lähtöpaikka lopuksi</span>';
+  el.innerHTML = `<div class="card trip-active">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><span class="badge b-pending">Ajo käynnissä</span><span class="muted">${esc(a.car)}</span></div>
+    <div class="big-time num" style="margin-top:12px" id="elapsed">${durText(Date.now() - new Date(a.start))}</div>
+    <div class="muted">alkoi ${fmtTime(a.start)}</div>
+    <ul class="points" style="margin-top:16px">
+      <li>${startTxt}${sp && sp.acc ? `<small>Lähtö · tarkkuus ±${sp.acc} m</small>` : '<small>Lähtö</small>'}</li>
+      ${pts.map((p) => `<li>${esc(p.addr || coordText(p))}<small>Välipiste ${fmtTime(p.time)}</small></li>`).join('')}
+    </ul>
+    <div class="stack">
+      <button class="btn btn-primary btn-lg" type="button" data-act="finish">Lopeta ajo</button>
+      <button class="btn btn-secondary btn-block" type="button" data-act="waypoint">Lisää välipiste</button>
+      <button class="btn btn-ghost btn-danger-text btn-block" type="button" data-act="cancelTrip">Peru ajo</button>
+    </div></div>`;
+}
+function recentHtml() {
+  const t = [...state.trips].sort((a, b) => b.start.localeCompare(a.start)).slice(0, 3);
+  if (!t.length) return '';
+  return `<h2 class="section-title">Viimeisimmät ajot</h2><ul class="list">${t.map(tripItem).join('')}</ul>`;
+}
+function tripItem(t) {
+  return `<li><button class="trip-item" type="button" data-edit="${esc(t.id)}">
+    <div class="ti-top"><span class="ti-date">${fmtDate(t.start)} · ${fmtTime(t.start)}–${fmtTime(t.end)}</span><span class="ti-km num">${fmtKm(t.km)} km</span></div>
+    <div class="ti-route">${esc(t.from)} → ${esc(t.to)}</div>
+    <div class="ti-meta"><span class="badge ${t.type === 'yksityinen' ? 'b-private' : 'b-work'}">${t.type === 'yksityinen' ? 'Yksityisajo' : 'Työajo'}</span><span>${esc(t.car)}</span>${t.purpose ? `<span>· ${esc(t.purpose)}</span>` : ''}</div>
+  </button></li>`;
+}
+
+function monthOptions(selId, includeAll) {
+  const sel = $(selId); const cur = sel.value;
+  const keys = [...new Set([monthKey(new Date().toISOString()), ...state.trips.map((t) => monthKey(t.start))])].sort().reverse();
+  sel.innerHTML = keys.map((k) => `<option value="${k}">${monthLabel(k)}</option>`).join('') + (includeAll ? '<option value="all">Kaikki ajot</option>' : '');
+  sel.value = cur && [...sel.options].some((o) => o.value === cur) ? cur : keys[0];
+  return sel.value;
+}
+function tripsFor(k) { return state.trips.filter((t) => k === 'all' || monthKey(t.start) === k).sort((a, b) => b.start.localeCompare(a.start)); }
+
+function renderList() {
+  const k = monthOptions('#listMonth', true);
+  const t = tripsFor(k);
+  $('#tripList').innerHTML = t.length ? t.map(tripItem).join('') :
+    `<li class="empty card"><strong>Ei ajoja tällä kaudella</strong>Aloita ajo Ajo-välilehdeltä tai lisää ajo käsin.</li>`;
+  $('#btnExportList').disabled = !t.length;
+}
+
+function aggregate(trips, keyFn) {
+  const m = new Map();
+  for (const t of trips) {
+    const k = keyFn(t); const r = m.get(k) || { key: k, n: 0, km: 0, work: 0, priv: 0 };
+    r.n++; r.km += +t.km || 0; if (t.type === 'yksityinen') r.priv += +t.km || 0; else r.work += +t.km || 0;
+    m.set(k, r);
+  }
+  return [...m.values()].sort((a, b) => b.km - a.km);
+}
+function sumTable(title, head, rows, total) {
+  const tr = (r, cls = '') => `<tr class="${cls}"><td>${esc(r.key)}</td><td class="n">${r.n}</td><td class="n">${fmtKm(r.work)}</td><td class="n">${fmtKm(r.priv)}</td><td class="n">${fmtKm(r.km)}</td></tr>`;
+  return `<div class="card table-card"><h3>${title}</h3><div class="tscroll"><table>
+    <thead><tr><th scope="col">${head}</th><th scope="col" class="n">Ajoja</th><th scope="col" class="n">Työ km</th><th scope="col" class="n">Yks. km</th><th scope="col" class="n">Yht. km</th></tr></thead>
+    <tbody>${rows.map((r) => tr(r)).join('')}${rows.length > 1 ? tr({ ...total, key: 'Yhteensä' }, 'sum') : ''}</tbody></table></div></div>`;
+}
+function renderSummary() {
+  const k = monthOptions('#sumMonth', true);
+  const t = tripsFor(k);
+  $('#btnExportSum').disabled = !t.length;
+  if (!t.length) { $('#sumContent').innerHTML = `<div class="empty card"><strong>Ei ajoja tällä kaudella</strong>Yhteenveto näkyy, kun kaudelle on tallennettu ajoja.</div>`; return; }
+  const total = aggregate(t, () => 'all')[0];
+  $('#sumContent').innerHTML = `<div class="kpis">
+      <div class="kpi"><div class="k">Ajoja</div><div class="v">${total.n}</div></div>
+      <div class="kpi"><div class="k">Km yhteensä</div><div class="v">${fmtKm(total.km)}</div></div>
+      <div class="kpi"><div class="k">Työajo km</div><div class="v">${fmtKm(total.work)}</div></div>
+      <div class="kpi"><div class="k">Yksityisajo km</div><div class="v">${fmtKm(total.priv)}</div></div>
+    </div>
+    ${sumTable('Autoittain', 'Auto', aggregate(t, (x) => x.car), total)}
+    ${sumTable('Kuljettajittain', 'Kuljettaja', aggregate(t, (x) => x.driver || '–'), total)}`;
+}
+
+function renderSettings() {
+  const d = $('#setDriver'); if (document.activeElement !== d) d.value = state.settings.driver;
+  $('#carList').innerHTML = state.settings.cars.length ? state.settings.cars.map((c) =>
+    `<li><span>${esc(c)}</span><button class="icon-btn" type="button" data-delcar="${esc(c)}" aria-label="Poista auto ${esc(c)}">
+      <svg viewBox="0 0 24 24" width="24" height="24" class="ico" aria-hidden="true"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg></button></li>`).join('')
+    : '<li class="muted" style="font-weight:400;font-size:14px;letter-spacing:0;border:0">Ei vielä autoja.</li>';
+  $('#storageInfo').textContent = `Tallennettuja ajoja: ${state.trips.length}.`;
+}
+
+/* ---------- Ajon toiminnot ---------- */
+function busy(btn, text) { btn.disabled = true; btn.dataset.label = btn.innerHTML; btn.innerHTML = `<span class="spinner" aria-hidden="true"></span>${text}`; }
+
+async function startTrip() {
+  const car = $('#startCar').value;
+  state.settings.lastCar = car;
+  state.active = { id: uid(), car, start: new Date().toISOString(), startPos: null, waypoints: [], locating: true };
+  save(); renderAjo();
+  try {
+    const p = await getPosition();
+    p.addr = await reverseGeocode(p);
+    if (state.active) state.active.startPos = p;
+  } catch (e) { toast(e.message + ' Voit kirjoittaa lähtöpaikan ajon lopuksi.'); }
+  if (state.active) { state.active.locating = false; save(); }
+  if (view === 'ajo') renderAjo();
+}
+
+async function addWaypoint(btn) {
+  busy(btn, 'Haetaan sijaintia…');
+  try {
+    const p = await getPosition(); p.addr = await reverseGeocode(p);
+    state.active.waypoints.push(p); save(); toast('Välipiste lisätty: ' + p.addr);
+  } catch (e) { toast(e.message); }
+  renderAjo();
+}
+
+async function finishTrip(btn) {
+  const a = state.active;
+  busy(btn, 'Haetaan määränpäätä…');
+  const end = new Date().toISOString();
+  let endPos = null, km = null, hint = '', hintWarn = false;
+  try { endPos = await getPosition(); endPos.addr = await reverseGeocode(endPos); }
+  catch (e) { hint = e.message + ' Kirjoita määränpää ja kilometrit käsin.'; hintWarn = true; }
+  const pts = [a.startPos, ...(a.waypoints || []), endPos].filter(Boolean);
+  if (pts.length >= 2 && endPos && a.startPos) {
+    try {
+      const r = await routeKm(pts);
+      if (r >= 0.3) { km = Math.round(r * 10) / 10; hint = `GPS: ajoreitti ${fmtKm(km)} km${pts.length > 2 ? ` (${pts.length - 2} ${pts.length === 3 ? 'välipiste' : 'välipistettä'})` : ''}. Tarkista, ajoitko tätä reittiä.`; }
+      else { hint = 'Lähtö- ja määränpää ovat lähes samat. Syötä kilometrit käsin tai lue ne matkamittarista.'; hintWarn = true; }
+    } catch (e) {
+      const h = haversineKm(pts);
+      hint = `Reittipalveluun ei saatu yhteyttä. Linnuntietä ${fmtKm(h)} km. Syötä ajetut kilometrit.`; hintWarn = true;
+    }
+  } else if (!hint) { hint = 'Lähtöpaikan sijaintia ei ole. Syötä kilometrit käsin.'; hintWarn = true; }
+  btn.disabled = false; btn.innerHTML = btn.dataset.label;
+  a.endPos = endPos; save();
+
+  const from = a.startPos ? a.startPos.addr : '';
+  const to = endPos ? endPos.addr : '';
+  const route = [from, ...(a.waypoints || []).map((w) => w.addr), to].filter(Boolean);
+  const odoStart = lastOdo(a.car);
+  openDialog('finish', {
+    id: a.id, car: a.car, driver: state.settings.driver, start: a.start, end, from, to,
+    route: route.length > 2 ? route.join(' – ') : '', type: 'työ', purpose: '',
+    odoStart, odoEnd: odoStart != null && km != null ? Math.round(odoStart + km) : null,
+    km, kmSource: km != null ? 'gps' : 'käsin', startPos: a.startPos, endPos, waypoints: a.waypoints || []
+  }, hint, hintWarn);
+}
+
+/* ---------- Lomake ---------- */
+let dlg = { mode: null, trip: null };
+function openDialog(mode, trip, hint = '', hintWarn = false) {
+  dlg = { mode, trip };
+  $('#dlgTitle').textContent = mode === 'finish' ? 'Ajo päättyi' : mode === 'new' ? 'Lisää ajo' : 'Muokkaa ajoa';
+  $('#dlgSub').textContent = mode === 'finish' ? 'Tarkista tiedot ja tallenna' : mode === 'new' ? 'Kaikki tiedot käsin' : fmtDT(trip.start);
+  $('#fCar').innerHTML = carOptions(trip.car);
+  $('#fDriver').value = trip.driver || '';
+  $('#fStart').value = toLocalInput(trip.start);
+  $('#fEnd').value = toLocalInput(trip.end);
+  $('#fFrom').value = trip.from || '';
+  $('#fTo').value = trip.to || '';
+  $('#fRoute').value = trip.route || '';
+  (trip.type === 'yksityinen' ? $('#fTypePriv') : $('#fTypeWork')).checked = true;
+  $('#fPurpose').value = trip.purpose || '';
+  $('#fOdoStart').value = trip.odoStart ?? '';
+  $('#fOdoEnd').value = trip.odoEnd ?? '';
+  $('#fKm').value = trip.km == null ? '' : String(trip.km).replace('.', ',');
+  $('#fKmHint').textContent = hint; $('#fKmHint').classList.toggle('warn', hintWarn);
+  for (const id of ['fPurposeErr', 'fOdoErr', 'fKmErr']) $('#' + id).textContent = '';
+  for (const i of document.querySelectorAll('#tripForm [aria-invalid]')) i.removeAttribute('aria-invalid');
+  $('#btnDelete').hidden = mode !== 'edit';
+  $('#btnCancel').textContent = mode === 'finish' ? 'Takaisin' : 'Peruuta';
+  const purposes = [...new Set(state.trips.slice().reverse().map((t) => t.purpose).filter(Boolean))].slice(0, 30);
+  $('#purposeList').innerHTML = purposes.map((p) => `<option value="${esc(p)}">`).join('');
+  updatePurposeReq();
+  $('#tripDlg').showModal();
+  $('#tripDlg .dlg-body').scrollTop = 0;
+}
+function updatePurposeReq() { $('#fPurposeReq').hidden = !$('#fTypeWork').checked; }
+
+// Kilometrit, mittarilukemat: kun yhtä muutetaan, muut seuraavat
+$('#fOdoEnd').addEventListener('input', () => {
+  const s = parseNum($('#fOdoStart').value), e = parseNum($('#fOdoEnd').value);
+  if (s != null && e != null && e >= s) { $('#fKm').value = e - s; dlg.trip.kmSource = 'mittari'; }
+});
+$('#fOdoStart').addEventListener('input', () => {
+  const s = parseNum($('#fOdoStart').value), k = parseNum($('#fKm').value), e = parseNum($('#fOdoEnd').value);
+  if (s != null && k != null && (e == null || dlg.trip.kmSource !== 'mittari')) $('#fOdoEnd').value = Math.round(s + k);
+  else if (s != null && e != null && e >= s) $('#fKm').value = e - s;
+});
+$('#fKm').addEventListener('input', () => {
+  const s = parseNum($('#fOdoStart').value), k = parseNum($('#fKm').value);
+  dlg.trip.kmSource = 'käsin';
+  if (s != null && k != null) $('#fOdoEnd').value = Math.round(s + k);
+});
+for (const r of document.querySelectorAll('input[name=fType]')) r.addEventListener('change', updatePurposeReq);
+
+function fieldErr(inputId, errId, msg) {
+  $('#' + errId).textContent = msg;
+  if (msg) $('#' + inputId).setAttribute('aria-invalid', 'true'); else $('#' + inputId).removeAttribute('aria-invalid');
+  return !msg;
+}
+
+$('#tripForm').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const f = (id) => $('#' + id).value.trim();
+  const type = $('#fTypePriv').checked ? 'yksityinen' : 'työ';
+  const km = parseNum(f('fKm')), odoStart = parseNum(f('fOdoStart')), odoEnd = parseNum(f('fOdoEnd'));
+  const start = fromLocalInput(f('fStart')), end = fromLocalInput(f('fEnd'));
+  // Pakolliset tekstikentät
+  let firstBad = null;
+  for (const id of ['fDriver', 'fFrom', 'fTo', 'fStart', 'fEnd']) {
+    const bad = !f(id);
+    if (bad) $('#' + id).setAttribute('aria-invalid', 'true'); else $('#' + id).removeAttribute('aria-invalid');
+    if (bad && !firstBad) firstBad = id;
+  }
+  const okP = fieldErr('fPurpose', 'fPurposeErr', type === 'työ' && !f('fPurpose') ? 'Kerro työajon tarkoitus.' : '');
+  const okK = fieldErr('fKm', 'fKmErr', km == null || km <= 0 ? 'Syötä ajetut kilometrit.' : km > 2000 ? 'Tarkista kilometrit.' : '');
+  const okO = fieldErr('fOdoEnd', 'fOdoErr', odoStart != null && odoEnd != null && odoEnd < odoStart ? 'Loppulukema on pienempi kuin alkulukema.' : '');
+  const okT = start && end && end >= start;
+  if (start && end && !okT) { $('#fEnd').setAttribute('aria-invalid', 'true'); toast('Saapumisaika on ennen lähtöaikaa.'); }
+  if (firstBad || !okP || !okK || !okO || !okT) {
+    const target = firstBad || (!okP ? 'fPurpose' : !okK ? 'fKm' : !okO ? 'fOdoEnd' : 'fEnd');
+    if (firstBad) toast('Täytä pakolliset kentät.');
+    $('#' + target).focus(); return;
+  }
+  const t = {
+    ...dlg.trip, car: $('#fCar').value, driver: f('fDriver'), start, end, from: f('fFrom'), to: f('fTo'),
+    route: f('fRoute'), type, purpose: f('fPurpose'), odoStart, odoEnd, km: Math.round(km * 10) / 10,
+    kmSource: dlg.trip.kmSource || 'käsin', updated: new Date().toISOString()
+  };
+  const i = state.trips.findIndex((x) => x.id === t.id);
+  if (i >= 0) state.trips[i] = t; else state.trips.push(t);
+  if (dlg.mode === 'finish') state.active = null;
+  state.settings.lastCar = t.car;
+  save();
+  $('#tripDlg').close();
+  toast(dlg.mode === 'edit' ? 'Muutokset tallennettu.' : `Ajo tallennettu: ${fmtKm(t.km)} km.`);
+  render();
+});
+$('#btnCancel').addEventListener('click', () => $('#tripDlg').close());
+$('#btnDelete').addEventListener('click', () => {
+  if (!confirm('Poistetaanko tämä ajo pysyvästi?')) return;
+  state.trips = state.trips.filter((x) => x.id !== dlg.trip.id); save();
+  $('#tripDlg').close(); toast('Ajo poistettu.'); render();
+});
+
+/* ---------- Vienti Exceliin (CSV) ---------- */
+function csv(rows) {
+  const cell = (v) => { const s = v == null ? '' : String(v); return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  return '﻿' + rows.map((r) => r.map(cell).join(';')).join('\r\n');
+}
+const numFi = (n, d = 1) => n == null ? '' : Number(n).toFixed(d).replace('.', ',');
+async function deliver(filename, text, type = 'text/csv;charset=utf-8') {
+  const file = new File([text], filename, { type });
+  const touch = matchMedia('(pointer: coarse)').matches;
+  if (touch && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: filename }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const url = URL.createObjectURL(file);
+  const a = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+const periodName = (k) => k === 'all' ? 'kaikki' : k;
+$('#btnExportList').addEventListener('click', () => {
+  const k = $('#listMonth').value;
+  const t = tripsFor(k).reverse();
+  const rows = [['Päivämäärä', 'Lähtöaika', 'Saapumisaika', 'Rekisteritunnus', 'Kuljettaja', 'Ajon tyyppi', 'Ajon tarkoitus', 'Lähtöpaikka', 'Määränpää', 'Reitti', 'Mittari alussa', 'Mittari lopussa', 'Kilometrit', 'Km-lähde']];
+  for (const x of t) rows.push([new Date(x.start).toLocaleDateString('fi-FI'), fmtTime(x.start), fmtTime(x.end), x.car, x.driver, x.type === 'yksityinen' ? 'Yksityisajo' : 'Työajo', x.purpose, x.from, x.to, x.route, x.odoStart ?? '', x.odoEnd ?? '', numFi(x.km), { gps: 'GPS', mittari: 'Matkamittari', 'käsin': 'Käsin' }[x.kmSource] || 'Käsin']);
+  const tot = aggregate(t, () => 'all')[0];
+  rows.push([], ['Yhteensä', '', '', '', '', '', '', '', '', '', '', '', numFi(tot.km), ''], ['Työajo', '', '', '', '', '', '', '', '', '', '', '', numFi(tot.work), ''], ['Yksityisajo', '', '', '', '', '', '', '', '', '', '', '', numFi(tot.priv), '']);
+  deliver(`ajopaivakirja_${periodName(k)}.csv`, csv(rows));
+});
+$('#btnExportSum').addEventListener('click', () => {
+  const k = $('#sumMonth').value; const t = tripsFor(k);
+  const rows = [[`Ajopäiväkirjan yhteenveto: ${k === 'all' ? 'kaikki ajot' : monthLabel(k)}`], []];
+  for (const [title, fn] of [['Auto', (x) => x.car], ['Kuljettaja', (x) => x.driver || '–']]) {
+    rows.push([title, 'Ajoja', 'Työajo km', 'Yksityisajo km', 'Yhteensä km']);
+    for (const r of aggregate(t, fn)) rows.push([r.key, r.n, numFi(r.work), numFi(r.priv), numFi(r.km)]);
+    rows.push([]);
+  }
+  const tot = aggregate(t, () => 'all')[0];
+  rows.push(['Kaikki yhteensä', tot.n, numFi(tot.work), numFi(tot.priv), numFi(tot.km)]);
+  deliver(`ajopaivakirja_yhteenveto_${periodName(k)}.csv`, csv(rows));
+});
+
+/* ---------- Asetukset ---------- */
+$('#setDriver').addEventListener('input', (e) => { state.settings.driver = e.target.value.trim(); save(); $('#hdrSub').textContent = state.settings.driver || 'Lisää nimesi asetuksissa'; });
+$('#addCarForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const v = normPlate($('#newCar').value);
+  if (!v) return;
+  if (!state.settings.cars.includes(v)) state.settings.cars.push(v);
+  if (!state.settings.lastCar) state.settings.lastCar = v;
+  $('#newCar').value = ''; save(); renderSettings(); toast(`Auto ${v} lisätty.`);
+});
+$('#btnBackup').addEventListener('click', () => {
+  const d = new Date();
+  deliver(`ajopaivakirja_varmuuskopio_${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.json`, JSON.stringify({ app: 'ajopaivakirja', version: 1, exported: d.toISOString(), ...state }, null, 1), 'application/json');
+});
+$('#restoreFile').addEventListener('change', async (e) => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (!file) return;
+  try {
+    const d = JSON.parse(await file.text());
+    if (d.app !== 'ajopaivakirja' || !Array.isArray(d.trips)) throw new Error('Tiedosto ei ole ajopäiväkirjan varmuuskopio.');
+    const ids = new Set(state.trips.map((t) => t.id));
+    const added = d.trips.filter((t) => t && t.id && t.start && t.end && !ids.has(t.id));
+    state.trips.push(...added);
+    for (const c of d.settings?.cars || []) if (!state.settings.cars.includes(c)) state.settings.cars.push(c);
+    if (!state.settings.driver && d.settings?.driver) state.settings.driver = d.settings.driver;
+    save(); render(); toast(`Palautettu ${added.length} ajoa.`);
+  } catch (err) { toast('Palautus epäonnistui: ' + err.message); }
+});
+
+/* ---------- Tapahtumat ---------- */
+document.addEventListener('click', (e) => {
+  const nav = e.target.closest('nav.tabs button'); if (nav) return show(nav.dataset.view);
+  const ed = e.target.closest('[data-edit]');
+  if (ed) { const t = state.trips.find((x) => x.id === ed.dataset.edit); if (t) openDialog('edit', { ...t }); return; }
+  const dc = e.target.closest('[data-delcar]');
+  if (dc) { state.settings.cars = state.settings.cars.filter((c) => c !== dc.dataset.delcar); save(); renderSettings(); return; }
+  const act = e.target.closest('[data-act]'); if (!act) return;
+  const a = act.dataset.act;
+  if (a === 'goSettings') show('asetukset');
+  if (a === 'start') startTrip();
+  if (a === 'waypoint') addWaypoint(act);
+  if (a === 'finish') finishTrip(act);
+  if (a === 'cancelTrip' && confirm('Perutaanko käynnissä oleva ajo? Sitä ei tallenneta.')) { state.active = null; save(); renderAjo(); }
+  if (a === 'manual') {
+    if (!state.settings.cars.length) { toast('Lisää ensin auto asetuksissa.'); return show('asetukset'); }
+    const now = new Date(); now.setSeconds(0, 0);
+    const car = state.settings.cars.includes(state.settings.lastCar) ? state.settings.lastCar : state.settings.cars[0];
+    openDialog('new', { id: uid(), car, driver: state.settings.driver, start: now.toISOString(), end: now.toISOString(), type: 'työ', odoStart: lastOdo(car), kmSource: 'käsin' });
+  }
+});
+// Auton vaihto: alkulukema seuraa valitun auton edellistä ajoa
+$('#fCar').addEventListener('change', () => {
+  if (dlg.mode === 'edit') return;
+  const o = lastOdo($('#fCar').value), k = parseNum($('#fKm').value);
+  $('#fOdoStart').value = o ?? '';
+  $('#fOdoEnd').value = o != null && k != null ? Math.round(o + k) : '';
+});
+$('#listMonth').addEventListener('change', renderList);
+$('#sumMonth').addEventListener('change', renderSummary);
+setInterval(() => { const el = $('#elapsed'); if (el && state.active) el.textContent = durText(Date.now() - new Date(state.active.start)); }, 15000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden && view === 'ajo') renderAjo(); });
+
+// Jos sovellus suljettiin kesken sijainnin haun, älä jää "Haetaan…"-tilaan
+if (state.active && state.active.locating) { state.active.locating = false; save(); }
+render();
+
+if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>
